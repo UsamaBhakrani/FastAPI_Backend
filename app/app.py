@@ -1,6 +1,16 @@
 from fastapi import FastAPI, HTTPException
+from app.schemas import PostCreate, PostResponse
+from app.db import Post, create_db_and_tables, get_async_session
+from sqlalchemy.ext.asyncio import AsyncSession
+from contextlib import asynccontextmanager
 
-app = FastAPI()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await create_db_and_tables()
+    yield
+
+app = FastAPI(lifespan=lifespan)
 
 text_posts = {
     1:{
@@ -24,7 +34,23 @@ def get_all_posts(limit:int = None):
     return text_posts
 
 @app.get("/posts/{id}")    
-def get_post_by_id(id: int):
+def get_post_by_id(id: int) -> PostResponse: 
     if id not in text_posts:
         raise HTTPException(status_code=404, detail="Post not found")
     return text_posts.get(id)
+
+@app.post("/posts")
+def create_post(post: PostCreate) -> PostResponse: 
+    new_post = {
+        "title": post.title,
+        "content": post.content,
+    }
+    text_posts[len(text_posts)+1] = new_post
+    return new_post
+
+@app.delete("/posts/{id}")
+def delete_post(id: int):
+    if id not in text_posts:
+        raise HTTPException(status_code=404, detail="Post not found")
+    deleted_post = text_posts.pop(id)
+    return {"detail": "Post deleted successfully", "post": deleted_post}     
